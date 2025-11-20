@@ -1,0 +1,9 @@
+/.vs
+__pycache__/
+.venv/
+/server/__pycache__
+/server/routers/__pycache__
+/server/.venv/
+
+*.pyc
+node_modules
