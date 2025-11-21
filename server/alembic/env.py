@@ -1,52 +1,40 @@
-from logging.config import fileConfig
 import os
-import re
+from logging.config import fileConfig
 from dotenv import load_dotenv
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 from sqlalchemy import create_engine
-
 from alembic import context
 
 from models.dbmodels import Base
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# Alembic Config
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# Logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
-
+# Load .env variables (DATABASE_URL)
 load_dotenv()
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+# SQLAlchemy models metadata
+target_metadata = Base.metadata
+
+# Read DATABASE_URL from environment
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("❌ DATABASE_URL is missing in your environment!")
+
+# Inject DATABASE_URL into alembic
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
+    """Run migrations without a DB connection (offline mode)."""
     url = config.get_main_option("sqlalchemy.url")
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -59,30 +47,17 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    url_tokens = {
-        "MYSQL_USER": os.getenv("MYSQL_USER", "admin"),
-        "MYSQL_PASSWORD": os.getenv("MYSQL_PASSWORD", "admin"),
-        "MYSQL_HOST": os.getenv("MYSQL_HOST", "localhost"),
-        "MYSQL_PORT": os.getenv("MYSQL_PORT", "3307"),
-        "MYSQL_DATABASE": os.getenv("MYSQL_DATABASE", "user-db")
-    }
-
-    url = config.get_main_option("sqlalchemy.url")
-
-    url = re.sub(r"\${(.+?)}", lambda m: url_tokens[m.group(1)], url)
-
-    connectable = create_engine(url)
+    """Run migrations with a live DB connection (online mode)."""
+    connectable = create_engine(
+        config.get_main_option("sqlalchemy.url"),
+        poolclass=pool.NullPool,
+    )
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata,
-            version_table="AlembicVersion"
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table="alembic_version",
         )
 
         with context.begin_transaction():
